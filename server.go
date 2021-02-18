@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -45,24 +46,57 @@ func (this *Server) BoardCast(user *User,msg string){
 
 func (this *Server) Handler(conn net.Conn){
 	user:=NewUser(conn)
+	
+	// 用户上线 将用户加入 OnlineMap
 	this.mapLock.Lock()
 	this.OnlineMap[user.Name] = user
 	this.mapLock.Unlock()
+	
+	// 广播用户上线信息
 	this.BoardCast(user,"已上线")
+	
+	// 接收客户端发送的消息
+	go func() {
+		buf:=make([]byte,4096)
+		for  {
+			n,err:=conn.Read(buf)
+			if n==0{
+				this.BoardCast(user,"下线")
+				return
+			}
+			if err!=nil && err!= io.EOF{
+				fmt.Println("Conn Read err:",err)
+				return
+			}
+			// 提取用户信息
+			msg:=string(buf[n-1])
+			// 广播消息
+			this.BoardCast(user,msg)
+		}
+	}()
+	
+	// 阻塞当前 Handler
+	select {}
 	
 }
 
+
+// 启动服务器的接口
 func (this *Server) Start(){
+	// socket listen
 	listener,err:=net.Listen("tcp",fmt.Sprintf("%s:%d",this.IP,this.Port))
 	if err!=nil{
 		log.Println("net.Listen err:",err)
 		return
 	}
+	// close listen socket
 	defer listener.Close()
 	
+	// 启动监听 Message 的 goroutine
 	go this.ListenMessage()
 	
 	for {
+		// accept
 		conn,err:=listener.Accept()
 		if err!=nil{
 			log.Println("Listener accept err:",err)
