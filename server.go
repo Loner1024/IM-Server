@@ -79,7 +79,7 @@ func (this *Server) Handler(conn net.Conn) {
 		select {
 		case <-isLive:
 		// 什么都不做，激活 select 更新计时器
-		case <-time.After(time.Second * 10):
+		case <-time.After(time.Second * 300):
 			user.SendMessage("超时下线...\n")
 			// 超时关闭
 			close(user.C)

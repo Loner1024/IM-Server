@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"strings"
 )
@@ -43,18 +44,21 @@ func (this *User) OffLine() {
 	this.server.BoardCast(this, "下线")
 }
 
-// 给当前用户发送消息（自己给自己发消息
+// 给当前用户发送消息
 func (this *User) SendMessage(msg string) {
 	this.conn.Write([]byte(msg))
 }
 
 // 用户消息处理
 func (this *User) DoMessage(msg string) {
+	fmt.Println(len(msg), msg[:3])
 	if msg == "who" {
 		for _, user := range this.server.OnlineMap {
 			this.SendMessage("[" + user.Addr + "]" + user.Name + "在线...\n")
 		}
-	} else if len(msg) > 7 && msg[:7] == "rename|" {
+		return
+	}
+	if len(msg) > 7 && msg[:7] == "rename|" {
 		newName := strings.Split(msg, "|")[1]
 		if _, ok := this.server.OnlineMap[newName]; !ok {
 			// 修改 name
@@ -64,12 +68,29 @@ func (this *User) DoMessage(msg string) {
 			this.server.mapLock.Unlock()
 			this.Name = newName
 			this.SendMessage("名字已修改为: " + newName + "\n")
+			return
 		} else {
 			this.SendMessage("名字已经存在\n")
 		}
-	} else {
-		this.server.BoardCast(this, msg)
 	}
+	if len(msg) > 4 && msg[:3] == "to|" {
+		fmt.Println("here")
+		remoteName := strings.Split(msg, "|")[1]
+		if remoteName == "" {
+			this.SendMessage("消息格式不正确\n")
+			return
+		}
+		// 找到 User 对象
+		remoteUser, ok := this.server.OnlineMap[remoteName]
+		if !ok {
+			this.SendMessage("用户不存在\n")
+			return
+		}
+		// 发送消息出去
+		remoteUser.SendMessage(this.Name + "对你说 " + strings.Split(msg, "|")[2] + "\n")
+		return
+	}
+	this.server.BoardCast(this, msg)
 }
 
 func (this *User) ListenMessage() {
