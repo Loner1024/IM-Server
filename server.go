@@ -45,15 +45,10 @@ func (this *Server) BoardCast(user *User,msg string){
 
 
 func (this *Server) Handler(conn net.Conn){
-	user:=NewUser(conn)
+	user:=NewUser(conn,this)
 	
 	// 用户上线 将用户加入 OnlineMap
-	this.mapLock.Lock()
-	this.OnlineMap[user.Name] = user
-	this.mapLock.Unlock()
-	
-	// 广播用户上线信息
-	this.BoardCast(user,"已上线")
+	user.Online()
 	
 	// 接收客户端发送的消息
 	go func() {
@@ -61,7 +56,7 @@ func (this *Server) Handler(conn net.Conn){
 		for  {
 			n,err:=conn.Read(buf)
 			if n==0{
-				this.BoardCast(user,"下线")
+				user.OffLine()
 				return
 			}
 			if err!=nil && err!= io.EOF{
@@ -69,9 +64,9 @@ func (this *Server) Handler(conn net.Conn){
 				return
 			}
 			// 提取用户信息
-			msg:=string(buf[n-1])
+			msg:=string(buf[:n-1])
 			// 广播消息
-			this.BoardCast(user,msg)
+			user.DoMessage(msg)
 		}
 	}()
 	
