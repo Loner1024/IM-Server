@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -48,6 +49,9 @@ func (this *Server) Handler(conn net.Conn) {
 	// 用户上线 将用户加入 OnlineMap
 	user.Online()
 
+	// 监测用户是否活跃
+	isLive := make(chan bool)
+
 	// 接收客户端发送的消息
 	go func() {
 		buf := make([]byte, 4096)
@@ -65,11 +69,24 @@ func (this *Server) Handler(conn net.Conn) {
 			msg := string(buf[:n-1])
 			// 广播消息
 			user.DoMessage(msg)
+
+			isLive <- true
 		}
 	}()
-
+	// 超时强踢
 	// 阻塞当前 Handler
-	select {}
+	for {
+		select {
+		case <-isLive:
+		// 什么都不做，激活 select 更新计时器
+		case <-time.After(time.Second * 10):
+			user.SendMessage("超时下线...\n")
+			// 超时关闭
+			close(user.C)
+			conn.Close()
+			return
+		}
+	}
 
 }
 
